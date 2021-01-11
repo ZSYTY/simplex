@@ -21,12 +21,13 @@ private:
     int sgn(double x) {
         return x < -eps ? -1 : (x > eps ? 1 : 0);
     }
-    void pivot(int n, int m, Vector &c, Matrix &A, Vector &d, double &ans, int pivot_i, int pivot_j);
+    void pivot(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, int pivot_i, int pivot_j);
 public:
     Simplex();
     ~Simplex();
-    SolveResult solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &d, double &ans, Vector &x);
-    SolveResult solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &d, std::vector<int> &b, std::vector<int> &e, double &ans, Vector &x);
+    SolveResult solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x);
+    SolveResult solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x);
+    SolveResult dualSimplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x);
 };
 
 Simplex::Simplex()
@@ -39,14 +40,14 @@ Simplex::~Simplex()
 
 /*
  * Solve linear programming in standard form:
- * Input: c_n, A_{m*n}, d_m
+ * Input: c_n, A_{m*n}, b_m
  * Output: ans, x_n 
  * Maximize c^T dot x
- * s.t. A dot x \leq d
+ * s.t. A dot x \leq b
  * it will add slack variables
  */
-SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &d, double &ans, Vector &x) {
-    if (n != c.size() || m != A.size() || m != d.size()) {
+SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x) {
+    if (n != c.size() || m != A.size() || m != b.size()) {
         std::cerr << "Wrong size of params" << std::endl;
         return Infeasible;
     }
@@ -71,16 +72,20 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
         c.push_back(0);
     }
 
+    Vector x_dual(x);
+    double ans_dual = ans;
+    SolveResult dual_rst = dualSimplexMethod(n_0, m, c, A, b, ans_dual, x_dual);
+
     // Phase I
-    int pivot_i = std::min_element(d.begin(), d.end()) - d.begin(), pivot_j = -1;
-    while (sgn(d[pivot_i]) < 0) {
+    int pivot_i = std::min_element(b.begin(), b.end()) - b.begin(), pivot_j = -1;
+    while (sgn(b[pivot_i]) < 0) {
         auto &pivot_row = A[pivot_i];
         pivot_j = std::min_element(pivot_row.begin(), pivot_row.end()) - pivot_row.begin();
         if (sgn(pivot_row[pivot_j]) >= 0) {
             return Infeasible;
         }
-        pivot(n_0, m, c, A, d, ans, pivot_i, pivot_j);
-        pivot_i = std::min_element(d.begin(), d.end()) - d.begin();
+        pivot(n_0, m, c, A, b, ans, pivot_i, pivot_j);
+        pivot_i = std::min_element(b.begin(), b.end()) - b.begin();
     }
 
     // Phase II
@@ -92,7 +97,7 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
             if (sgn(A[i][pivot_j]) <= 0) {
                 continue;
             }
-            double ratio = d[i] / A[i][pivot_j];
+            double ratio = b[i] / A[i][pivot_j];
             if (pivot_i == -1 || ratio < min_ratio) {
                 pivot_i = i;
                 min_ratio = ratio;
@@ -101,7 +106,7 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
         if (pivot_i == -1) {
             return Unbounded;
         }
-        pivot(n_0, m, c, A, d, ans, pivot_i, pivot_j);
+        pivot(n_0, m, c, A, b, ans, pivot_i, pivot_j);
         pivot_j = std::min_element(c.begin(), c.end()) - c.begin();
     }
 
@@ -112,7 +117,7 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
         }
         for (int j = 0; j < m; j++) {
             if (sgn(A[j][i] - 1) == 0) {
-                x[i] = d[j];
+                x[i] = b[j];
                 break;
             }
         }
@@ -131,9 +136,9 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
     // }
     // std::cout << std::endl;
 
-    // std::cout << "d:" << std::endl;
+    // std::cout << "b:" << std::endl;
     // for (int i = 0; i < m; i++) {
-    //     std::cout << d[i] << " ";
+    //     std::cout << b[i] << " ";
     // }
     // std::cout << std::endl;
 
@@ -150,14 +155,14 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
  * 
  */
 
-void Simplex::pivot(int n, int m, Vector &c, Matrix &A, Vector &d, double &ans, int pivot_i, int pivot_j) {
+void Simplex::pivot(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, int pivot_i, int pivot_j) {
     auto &A_p = A[pivot_i];
     
     double factor = A_p[pivot_j];
     for (int j = 0; j < n; j++) {
         A_p[j] /= factor;
     }
-    d[pivot_i] /= factor;
+    b[pivot_i] /= factor;
     
     for (int i = 0; i < m; i++) {
         if (i == pivot_i || sgn(A[i][pivot_j]) == 0) {
@@ -167,14 +172,14 @@ void Simplex::pivot(int n, int m, Vector &c, Matrix &A, Vector &d, double &ans, 
         for (int j = 0; j < n; j++) {
             A[i][j] -= factor * A_p[j];
         }
-        d[i] -= factor * d[pivot_i];
+        b[i] -= factor * b[pivot_i];
     }
 
     factor = c[pivot_j];
     for (int j = 0; j < n; j++) {
         c[j] -= factor * A_p[j];
     }
-    ans -= factor * d[pivot_i];
+    ans -= factor * b[pivot_i];
 }
 
 /*
@@ -182,30 +187,30 @@ void Simplex::pivot(int n, int m, Vector &c, Matrix &A, Vector &d, double &ans, 
  * Input: c_n, A_{m*n}, d_m, b_m, e_n
  * Output: ans, x_n 
  * Minimize c^T dot x
- * s.t. A dot x \leq or \eq or \geq d
+ * s.t. A dot x \leq or \eq or \geq b
  * it will add slack variables
  */
 
-SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &d, std::vector<int> &b, std::vector<int> &e, double &ans, Vector &x) {
+SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x) {
     for (int i = 0; i < n; i++) {
         c[i] = -c[i];
     }
 
     int m_0 = m;
     for (int i = 0; i < m; i++) {
-        if (b[i] == -1) {
+        if (d[i] == -1) {
             for (int j = 0; j < n; j++) {
                 A[i][j] = -A[i][j];
             }
-            d[i] = -d[i];
-        } else if (b[i] == 0) {
+            b[i] = -b[i];
+        } else if (d[i] == 0) {
             m_0++;
             Vector *vec = new Vector();
             for (int j = 0; j < n; j++) {
                 vec->push_back(-A[i][j]);
             }
             A.push_back(*vec);
-            d.push_back(-d[i]);
+            b.push_back(-b[i]);
         }
     }
 
@@ -228,9 +233,24 @@ SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Ve
         }
     }
 
-    SolveResult rst = solveStandardForm(n_0, m_0, c, A, d, ans, x);
+    SolveResult rst = solveStandardForm(n_0, m_0, c, A, b, ans, x);
     for (auto &item : extended_map) {
         x[item.first] -= x[item.second];
     }
     return rst;
+}
+
+
+SolveResult Simplex::dualSimplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x) {
+    int pivot_i = std::min_element(b.begin(), b.end()) - b.begin(), pivot_j = -1;
+    while (sgn(b[pivot_i]) < 0) {
+        auto &pivot_row = A[pivot_i];
+        pivot_j = std::min_element(pivot_row.begin(), pivot_row.end()) - pivot_row.begin();
+        if (sgn(pivot_row[pivot_j]) >= 0) {
+            return Infeasible;
+        }
+        pivot(n, m, c, A, b, ans, pivot_i, pivot_j);
+    }
+
+    
 }
