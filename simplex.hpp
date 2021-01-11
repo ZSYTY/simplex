@@ -10,8 +10,8 @@ typedef std::vector<std::vector<double>> Matrix;
 
 enum SolveResult {
     Infeasible  = -1,
-    Solvable    = 0,
-    Unbounded   = 1
+    Solvable    = 1,
+    Unbounded   = 0
 };
 
 class Simplex
