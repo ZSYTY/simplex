@@ -44,7 +44,7 @@ Simplex::~Simplex()
  * Input: c_n, A_{m*n}, b_m
  * Output: ans, x_n 
  * Maximize c^T dot x
- * s.t. A dot x \leq b
+ * s.t. A dot x <= b, x_i >= 0
  * it will add slack variables and solve LP using simplex method and dual-simplex method
  */
 SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible) {
@@ -86,21 +86,23 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
 
 
 /*
- *  Pivoting operation:
- * 
- * 
+ * Pivoting operation:
+ * uses row operations to change one matrix entry (the PIVOT) to "1" 
+ * and then to change all other entries in the pivot's column into ZERO's.
  * 
  */
 
 void Simplex::pivot(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, int pivot_i, int pivot_j) {
     auto &A_p = A[pivot_i];
     
+    // change the pivot to "1"
     double factor = A_p[pivot_j];
     for (int j = 0; j < n; j++) {
         A_p[j] /= factor;
     }
     b[pivot_i] /= factor;
     
+    // change all other entries in the pivot's column into ZERO's
     for (int i = 0; i < m; i++) {
         if (i == pivot_i || sgn(A[i][pivot_j]) == 0) {
             continue;
@@ -124,15 +126,18 @@ void Simplex::pivot(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, 
  * Input: c_n, A_{m*n}, d_m, b_m, e_n
  * Output: ans, x_n 
  * Minimize c^T dot x
- * s.t. A dot x \leq or \eq or \geq b
- * it will add slack variables
+ * s.t. A dot x <= or == or >= b, x_i <= or == or >= 0
+ * it will transform LP into standard form and solve it
  */
 
 SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible) {
+    // inverse c
     for (int i = 0; i < n; i++) {
         c[i] = -c[i];
     }
 
+    // turn "==" constraint to two "<=" constraints
+    // turn ">=" constraint to one "<=" constrint
     int m_0 = m;
     for (int i = 0; i < m; i++) {
         if (d[i] == 1) {
@@ -151,10 +156,13 @@ SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Ve
         }
     }
 
+    // turn x_i <= 0 into -x_i >= 0
+    // turn x_i with no bound into x_i1 >= 0 and x_i2 >= 0, x_i = x_i1 - x_i2
     int n_0 = n;
     std::map<int, int> extended_map;
     for (int j = 0; j < n; j++) {
         if (e[j] == -1) {
+            extended_map[j] = j;
             for (int i = 0; i < m; i++) {
                 A[i][j] = -A[i][j];
             }
@@ -176,12 +184,26 @@ SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Ve
     ans_dual = -ans_dual;
 
     for (auto &item : extended_map) {
-        x[item.first] -= x[item.second];
-        x_dual[item.first] -= x_dual[item.second];
+        if (item.first == item.second) {
+            x[item.first] *= -1;
+            x_dual[item.first] *= -1;
+        } else {
+            x[item.first] -= x[item.second];
+            x_dual[item.first] -= x_dual[item.second];
+        }
     }
 
     return rst;
 }
+
+/*
+ * Solve LP using simplex method:
+ * Input: c_n, A_{m*n}, b_m
+ * Output: ans, x_n 
+ * Maximize c^T dot x
+ * s.t. A dot x == b, x >= 0
+ * using two-phase method
+ */ 
 
 SolveResult Simplex::simplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x) {
     
@@ -234,10 +256,19 @@ SolveResult Simplex::simplexMethod(int n, int m, Vector c, Matrix A, Vector b, d
     return Solvable;
 }
 
+/*
+ * Solve LP using dual-simplex method:
+ * Input: c_n, A_{m*n}, b_m
+ * Output: ans, x_n 
+ * Maximize c^T dot x
+ * s.t. A dot x == b, x_i >= 0
+ */ 
+
 SolveResult Simplex::dualSimplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x) {
     if (sgn(*std::min_element(c.begin(), c.end())) < 0) {
         return Infeasible;
     }
+
     int pivot_i = std::min_element(b.begin(), b.end()) - b.begin(), pivot_j = -1;
     while (sgn(b[pivot_i]) < 0) {
         auto &pivot_row = A[pivot_i];
