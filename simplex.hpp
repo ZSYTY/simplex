@@ -25,9 +25,10 @@ private:
 public:
     Simplex();
     ~Simplex();
-    SolveResult solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x);
-    SolveResult solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x);
+    SolveResult solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible);
+    SolveResult solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible);
     SolveResult dualSimplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x);
+    SolveResult simplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x);
 };
 
 Simplex::Simplex()
@@ -44,9 +45,9 @@ Simplex::~Simplex()
  * Output: ans, x_n 
  * Maximize c^T dot x
  * s.t. A dot x \leq b
- * it will add slack variables
+ * it will add slack variables and solve LP using simplex method and dual-simplex method
  */
-SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x) {
+SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible) {
     if (n != c.size() || m != A.size() || m != b.size()) {
         std::cerr << "Wrong size of params" << std::endl;
         return Infeasible;
@@ -72,77 +73,13 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
         c.push_back(0);
     }
 
-    Vector x_dual(x);
-    double ans_dual = ans;
     SolveResult dual_rst = dualSimplexMethod(n_0, m, c, A, b, ans_dual, x_dual);
 
-    // Phase I
-    int pivot_i = std::min_element(b.begin(), b.end()) - b.begin(), pivot_j = -1;
-    while (sgn(b[pivot_i]) < 0) {
-        auto &pivot_row = A[pivot_i];
-        pivot_j = std::min_element(pivot_row.begin(), pivot_row.end()) - pivot_row.begin();
-        if (sgn(pivot_row[pivot_j]) >= 0) {
-            return Infeasible;
-        }
-        pivot(n_0, m, c, A, b, ans, pivot_i, pivot_j);
-        pivot_i = std::min_element(b.begin(), b.end()) - b.begin();
+    if (dual_rst == Infeasible) {
+        dual_infeasible = true;
     }
 
-    // Phase II
-    pivot_j = std::min_element(c.begin(), c.end()) - c.begin();
-    while (sgn(c[pivot_j]) < 0) {
-        pivot_i = -1;
-        double min_ratio;
-        for (int i = 0; i < m; i++) {
-            if (sgn(A[i][pivot_j]) <= 0) {
-                continue;
-            }
-            double ratio = b[i] / A[i][pivot_j];
-            if (pivot_i == -1 || ratio < min_ratio) {
-                pivot_i = i;
-                min_ratio = ratio;
-            }
-        }
-        if (pivot_i == -1) {
-            return Unbounded;
-        }
-        pivot(n_0, m, c, A, b, ans, pivot_i, pivot_j);
-        pivot_j = std::min_element(c.begin(), c.end()) - c.begin();
-    }
-
-    for (int i = 0; i < n; i++) {
-        if (sgn(c[i]) != 0) {
-            x[i] = 0;
-            continue;
-        }
-        for (int j = 0; j < m; j++) {
-            if (sgn(A[j][i] - 1) == 0) {
-                x[i] = b[j];
-                break;
-            }
-        }
-    }
-
-    // std::cout << "A:" << std::endl;
-    // for (int i = 0; i < m; i++) {
-    //     for (int j = 0; j < n_0; j++) {
-    //         std::cout << A[i][j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-    // std::cout << "c:" << std::endl;
-    // for (int j = 0; j < n_0; j++) {
-    //     std::cout << c[j] << " ";
-    // }
-    // std::cout << std::endl;
-
-    // std::cout << "b:" << std::endl;
-    // for (int i = 0; i < m; i++) {
-    //     std::cout << b[i] << " ";
-    // }
-    // std::cout << std::endl;
-
-    // std::cout << "ans: " << ans << std::endl;
+    SolveResult simplex_rst = simplexMethod(n_0, m, c, A, b, ans, x);
     
     return Solvable;
 }
@@ -191,14 +128,14 @@ void Simplex::pivot(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, 
  * it will add slack variables
  */
 
-SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x) {
+SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible) {
     for (int i = 0; i < n; i++) {
         c[i] = -c[i];
     }
 
     int m_0 = m;
     for (int i = 0; i < m; i++) {
-        if (d[i] == -1) {
+        if (d[i] == 1) {
             for (int j = 0; j < n; j++) {
                 A[i][j] = -A[i][j];
             }
@@ -233,15 +170,22 @@ SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Ve
         }
     }
 
-    SolveResult rst = solveStandardForm(n_0, m_0, c, A, b, ans, x);
+    SolveResult rst = solveStandardForm(n_0, m_0, c, A, b, ans, x, ans_dual, x_dual, dual_infeasible);
+    
+    ans = -ans;
+    ans_dual = -ans_dual;
+
     for (auto &item : extended_map) {
         x[item.first] -= x[item.second];
+        x_dual[item.first] -= x_dual[item.second];
     }
+
     return rst;
 }
 
-
-SolveResult Simplex::dualSimplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x) {
+SolveResult Simplex::simplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x) {
+    
+    // Phase I
     int pivot_i = std::min_element(b.begin(), b.end()) - b.begin(), pivot_j = -1;
     while (sgn(b[pivot_i]) < 0) {
         auto &pivot_row = A[pivot_i];
@@ -250,7 +194,82 @@ SolveResult Simplex::dualSimplexMethod(int n, int m, Vector c, Matrix A, Vector 
             return Infeasible;
         }
         pivot(n, m, c, A, b, ans, pivot_i, pivot_j);
+        pivot_i = std::min_element(b.begin(), b.end()) - b.begin();
     }
 
-    
+    // Phase II
+    pivot_j = std::min_element(c.begin(), c.end()) - c.begin();
+    while (sgn(c[pivot_j]) < 0) {
+        pivot_i = -1;
+        double min_ratio;
+        for (int i = 0; i < m; i++) {
+            if (sgn(A[i][pivot_j]) <= 0) {
+                continue;
+            }
+            double ratio = b[i] / A[i][pivot_j];
+            if (pivot_i == -1 || ratio < min_ratio) {
+                pivot_i = i;
+                min_ratio = ratio;
+            }
+        }
+        if (pivot_i == -1) {
+            return Unbounded;
+        }
+        pivot(n, m, c, A, b, ans, pivot_i, pivot_j);
+        pivot_j = std::min_element(c.begin(), c.end()) - c.begin();
+    }
+
+    for (int i = 0; i < n - m; i++) {
+        if (sgn(c[i]) != 0) {
+            x[i] = 0;
+            continue;
+        }
+        for (int j = 0; j < m; j++) {
+            if (sgn(A[j][i] - 1) == 0) {
+                x[i] = b[j];
+                break;
+            }
+        }
+    }
+    return Solvable;
+}
+
+SolveResult Simplex::dualSimplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x) {
+    if (sgn(*std::min_element(c.begin(), c.end())) < 0) {
+        return Infeasible;
+    }
+    int pivot_i = std::min_element(b.begin(), b.end()) - b.begin(), pivot_j = -1;
+    while (sgn(b[pivot_i]) < 0) {
+        auto &pivot_row = A[pivot_i];
+        pivot_j = -1;
+        for (int j = 1; j < n; j++) {
+            if (sgn(pivot_row[j]) >= 0) {
+                continue;
+            }
+            if (pivot_j == -1 || c[j] / pivot_row[j] > c[pivot_j] / pivot_row[pivot_j]) {
+                pivot_j = j;
+            }
+        }
+        if (pivot_j == -1) {
+            return Infeasible;
+        }
+
+        pivot(n, m, c, A, b, ans, pivot_i, pivot_j);
+        pivot_i = std::min_element(b.begin(), b.end()) - b.begin();
+    }
+
+    for (int i = 0; i < n - m; i++) {
+        if (sgn(c[i]) != 0) {
+            x[i] = 0;
+            continue;
+        }
+        for (int j = 0; j < m; j++) {
+            if (sgn(A[j][i] - 1) == 0) {
+                x[i] = b[j];
+                break;
+            }
+        }
+    }
+
+    return Solvable;
 }

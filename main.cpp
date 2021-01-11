@@ -7,12 +7,12 @@ int main()
 {
     Simplex simplex;
     int n = 0, m = 0;
-    double ans = 0, tmp;
-    Vector x, c, b;
+    double ans = 0, ans_dual, tmp;
+    Vector x, x_dual, c, b;
     std::vector<int> d, e;
     Matrix A;
 
-    std::ifstream infile("F:\\in.txt");
+    std::ifstream infile("in.txt");
     infile >> n >> m;
 
     for (int i = 0; i < n; i++)
@@ -42,16 +42,27 @@ int main()
     }
 
     x.resize(n);
-    SolveResult k = simplex.solveNonStandardForm(n, m, c, A, b, d, e, ans, x);
+    x_dual.resize(n);
+    bool dual_feasible = false;
+    SolveResult k = simplex.solveNonStandardForm(n, m, c, A, b, d, e, ans, x, ans_dual, x_dual, dual_feasible);
 
     std::cout << k << std::endl;
     if (k == Solvable)
     {
+        std::cout << "Simplex: " << std::endl;
         std::cout << ans << std::endl;
 
         for (int i = 0; i < n; i++)
         {
             std::cout << x[i] << " ";
+        }
+
+        std::cout << std::endl << "Dual simplex: " << std::endl;
+        std::cout << ans_dual << std::endl;
+
+        for (int i = 0; i < n; i++)
+        {
+            std::cout << x_dual[i] << " ";
         }
     }
     std::cout << std::endl;
