@@ -81,7 +81,7 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
 
     SolveResult simplex_rst = simplexMethod(n_0, m, c, A, b, ans, x);
     
-    return Solvable;
+    return simplex_rst;
 }
 
 
@@ -163,18 +163,19 @@ SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Ve
     for (int j = 0; j < n; j++) {
         if (e[j] == -1) {
             extended_map[j] = j;
-            for (int i = 0; i < m; i++) {
+            for (int i = 0; i < m_0; i++) {
                 A[i][j] = -A[i][j];
             }
             c[j] = -c[j];
         } else if (e[j] == 0) {
             extended_map[j] = n_0;
             n_0++;
-            for (int i = 0; i < m; i++) {
+            for (int i = 0; i < m_0; i++) {
                 A[i].push_back(-A[i][j]);
             }
             c.push_back(-c[j]);
             x.push_back(0);
+            x_dual.push_back(0);
         }
     }
 
@@ -268,13 +269,13 @@ SolveResult Simplex::dualSimplexMethod(int n, int m, Vector c, Matrix A, Vector 
     if (sgn(*std::min_element(c.begin(), c.end())) < 0) {
         return Infeasible;
     }
-
+    
     int pivot_i = std::min_element(b.begin(), b.end()) - b.begin(), pivot_j = -1;
     while (sgn(b[pivot_i]) < 0) {
         auto &pivot_row = A[pivot_i];
         pivot_j = -1;
         for (int j = 1; j < n; j++) {
-            if (sgn(pivot_row[j]) >= 0) {
+            if (sgn(pivot_row[j]) >= 0 || sgn(c[j]) <= 0) {
                 continue;
             }
             if (pivot_j == -1 || c[j] / pivot_row[j] > c[pivot_j] / pivot_row[pivot_j]) {
@@ -284,7 +285,6 @@ SolveResult Simplex::dualSimplexMethod(int n, int m, Vector c, Matrix A, Vector 
         if (pivot_j == -1) {
             return Infeasible;
         }
-
         pivot(n, m, c, A, b, ans, pivot_i, pivot_j);
         pivot_i = std::min_element(b.begin(), b.end()) - b.begin();
     }
