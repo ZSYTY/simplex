@@ -4,6 +4,7 @@
 #include <vector>
 #include <iostream>
 #include <algorithm>
+#include <time.h>
 
 typedef std::vector<double> Vector;
 typedef std::vector<std::vector<double>> Matrix;
@@ -25,8 +26,8 @@ private:
 public:
     Simplex();
     ~Simplex();
-    SolveResult solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible);
-    SolveResult solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible);
+    SolveResult solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible, double &t_sp, double &t_dsp);
+    SolveResult solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible, double &t_sp, double &t_dsp);
     SolveResult dualSimplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x);
     SolveResult simplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x);
 };
@@ -47,7 +48,7 @@ Simplex::~Simplex()
  * s.t. A dot x <= b, x_i >= 0
  * it will add slack variables and solve LP using simplex method and dual-simplex method
  */
-SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible) {
+SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible, double &t_sp, double &t_dsp) {
     if (n != c.size() || m != A.size() || m != b.size()) {
         std::cerr << "Wrong size of params" << std::endl;
         return Infeasible;
@@ -72,14 +73,21 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
     for (int j = n; j < n + m; j++) {
         c.push_back(0);
     }
-
+    
+    time_t begin_t0 = clock();
     SolveResult dual_rst = dualSimplexMethod(n_0, m, c, A, b, ans_dual, x_dual);
+    time_t finish_t0 = clock();
+    t_dsp = (double)(finish_t0 - begin_t0) / CLOCKS_PER_SEC * 1000;
+
 
     if (dual_rst == Infeasible) {
         dual_infeasible = true;
     }
 
+    time_t begin_t1 = clock();
     SolveResult simplex_rst = simplexMethod(n_0, m, c, A, b, ans, x);
+    time_t finish_t1 = clock();
+    t_sp = (double)(finish_t1 - begin_t1) / CLOCKS_PER_SEC * 1000;
     
     return simplex_rst;
 }
@@ -130,7 +138,7 @@ void Simplex::pivot(int n, int m, Vector &c, Matrix &A, Vector &b, double &ans, 
  * it will transform LP into standard form and solve it
  */
 
-SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible) {
+SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Vector &b, std::vector<int> &d, std::vector<int> &e, double &ans, Vector &x, double &ans_dual, Vector &x_dual, bool &dual_infeasible, double &t_sp, double &t_dsp) {
     // inverse c
     for (int i = 0; i < n; i++) {
         c[i] = -c[i];
@@ -179,7 +187,7 @@ SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Ve
         }
     }
 
-    SolveResult rst = solveStandardForm(n_0, m_0, c, A, b, ans, x, ans_dual, x_dual, dual_infeasible);
+    SolveResult rst = solveStandardForm(n_0, m_0, c, A, b, ans, x, ans_dual, x_dual, dual_infeasible, t_sp, t_dsp);
     
     ans = -ans;
     ans_dual = -ans_dual;
@@ -209,8 +217,10 @@ SolveResult Simplex::solveNonStandardForm(int n, int m, Vector &c, Matrix &A, Ve
 SolveResult Simplex::simplexMethod(int n, int m, Vector c, Matrix A, Vector b, double &ans, Vector &x) {
     
     // Phase I
+    // int k = 0;
     int pivot_i = std::min_element(b.begin(), b.end()) - b.begin(), pivot_j = -1;
     while (sgn(b[pivot_i]) < 0) {
+        // std::cout << "phase 1: " << ++k << std::endl;
         auto &pivot_row = A[pivot_i];
         pivot_j = std::min_element(pivot_row.begin(), pivot_row.end()) - pivot_row.begin();
         if (sgn(pivot_row[pivot_j]) >= 0) {

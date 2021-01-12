@@ -9,7 +9,7 @@ int main()
     //Initialization
     Simplex simplex;
     int n = 0, m = 0;
-    double ans = 0, ans_dual, tmp;
+    double ans = 0, ans_dual, tmp, t_sp = 0, t_dsp = 0;
     Vector x, x_dual, c, b;
     std::vector<int> d, e;
     Matrix A;
@@ -50,7 +50,7 @@ int main()
     //k == -1: Infeasible
     //k == 0: Unbounded
     //k == 1: Solvable
-    SolveResult k = simplex.solveNonStandardForm(n, m, c, A, b, d, e, ans, x, ans_dual, x_dual, dual_infeasible);
+    SolveResult k = simplex.solveNonStandardForm(n, m, c, A, b, d, e, ans, x, ans_dual, x_dual, dual_infeasible, t_sp, t_dsp);
 
     //Output the result of Simplex and Dual simplex
     std::cout << k << std::endl;
@@ -65,7 +65,9 @@ int main()
         }
 
         std::cout << std::endl
-                  << "Dual simplex: " << std::endl;
+                  << "The run time of Simplex is: " << t_sp << std::endl;
+
+        std::cout << "Dual simplex: " << std::endl;
         if (!dual_infeasible)
         {
             std::cout << ans_dual << std::endl;
@@ -74,9 +76,12 @@ int main()
             {
                 std::cout << x_dual[i] << " ";
             }
+
+            std::cout << std::endl
+                      << "The run time of Dual simplex is: " << t_dsp;
         }
         else
-            std::cout << "Infeasible" << std::endl;
+            std::cout << "Infeasible";
     }
     std::cout << std::endl;
 
