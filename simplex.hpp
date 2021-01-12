@@ -4,7 +4,7 @@
 #include <vector>
 #include <iostream>
 #include <algorithm>
-#include <time.h>
+#include <chrono>
 
 typedef std::vector<double> Vector;
 typedef std::vector<std::vector<double>> Matrix;
@@ -73,22 +73,23 @@ SolveResult Simplex::solveStandardForm(int n, int m, Vector &c, Matrix &A, Vecto
     for (int j = n; j < n + m; j++) {
         c.push_back(0);
     }
-    
-    time_t begin_t0 = clock();
-    SolveResult dual_rst = dualSimplexMethod(n_0, m, c, A, b, ans_dual, x_dual);
-    time_t finish_t0 = clock();
-    t_dsp = (double)(finish_t0 - begin_t0) / CLOCKS_PER_SEC * 1000;
 
+    auto start0 = std::chrono::system_clock::now();
+    SolveResult dual_rst = dualSimplexMethod(n_0, m, c, A, b, ans_dual, x_dual);
+    auto end0 = std::chrono::system_clock::now();
+    auto t0 = std::chrono::duration_cast<std::chrono::milliseconds>(end0 - start0);
+    t_dsp += t0.count();
 
     if (dual_rst == Infeasible) {
         dual_infeasible = true;
     }
 
-    time_t begin_t1 = clock();
+    auto start1 = std::chrono::system_clock::now();
     SolveResult simplex_rst = simplexMethod(n_0, m, c, A, b, ans, x);
-    time_t finish_t1 = clock();
-    t_sp = (double)(finish_t1 - begin_t1) / CLOCKS_PER_SEC * 1000;
-    
+    auto end1 = std::chrono::system_clock::now();
+    auto t1 = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - start1);
+    t_sp = t1.count();
+
     return simplex_rst;
 }
 
