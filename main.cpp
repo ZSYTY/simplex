@@ -42,7 +42,7 @@ int main()
         std::cin >> tmp;
         e.push_back(tmp);
     }
-    
+
     x.resize(n);
     x_dual.resize(n);
     bool dual_infeasible = false;
@@ -64,10 +64,10 @@ int main()
             std::cout << x[i] << " ";
         }
 
+        std::cout << std::endl
+                  << "Dual simplex: " << std::endl;
         if (!dual_infeasible)
         {
-            std::cout << std::endl
-                      << "Dual simplex: " << std::endl;
             std::cout << ans_dual << std::endl;
 
             for (int i = 0; i < n; i++)
@@ -76,8 +76,7 @@ int main()
             }
         }
         else
-            std::cout << std::endl
-                      << "Dual simplex infeasible" << std::endl;
+            std::cout << "Infeasible" << std::endl;
     }
     std::cout << std::endl;
 
